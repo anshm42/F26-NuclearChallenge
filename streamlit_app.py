@@ -111,6 +111,13 @@ st.markdown(
         text-transform: uppercase;
         letter-spacing: 0.1em;
     }
+    .status-card.alert {
+        background: #b42318;
+        border-color: #ef6657;
+        border-left-color: #ffb4aa;
+        color: white;
+        font-weight: 800;
+    }
     .eyebrow {
         color: var(--signal);
         font-family: "Avenir Next Condensed", "DIN Condensed", sans-serif;
@@ -197,8 +204,11 @@ if st.button("Analyze scenario", type="primary", disabled=uploaded is None or bo
         probability = float(result["leak_probability"])
         threshold = float(result["alert_threshold"])
         alert = bool(result["leak_alert"])
-        status = "Leak alert" if alert else "No leak alert"
-        st.markdown(f'<div class="status-card">{status}</div>', unsafe_allow_html=True)
+        status = "SCRAM! Leak Detected!" if alert else "No leak alert"
+        status_class = "status-card alert" if alert else "status-card"
+        st.markdown(
+            f'<div class="{status_class}">{status}</div>', unsafe_allow_html=True
+        )
 
         metric_columns = st.columns(3 if alert else 2)
         metric_columns[0].metric("Leak probability", f"{probability:.1%}")
