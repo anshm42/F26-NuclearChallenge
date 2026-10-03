@@ -118,6 +118,16 @@ leak-model predict \
 
 The JSON result contains the leak probability, safety-first alert decision, alert threshold, most likely leak type, all eight type probabilities, and each model's time window. Leak type is reported only when the binary model raises an alert.
 
+## Web demo
+
+Launch the local drag-and-drop interface after training both models:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+Upload one operation CSV. The page validates its size, runs the same prediction path as the CLI, and displays the leak alert and conditional leak-type probabilities. Model artifacts stay on the server and must come from a trusted source.
+
 ## Final held-out evaluation
 
 Run this separately, once the feature window, leak definition, model, and threshold are frozen:

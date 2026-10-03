@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 import joblib
 import pandas as pd
@@ -36,7 +36,7 @@ def comma_separated(value: str) -> tuple[str, ...]:
     return items
 
 
-def write_json(path: Path, payload: dict[str, Any]) -> None:
+def write_json(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
@@ -277,6 +277,17 @@ def run_evaluate_types(args: argparse.Namespace) -> None:
     print(json.dumps(metrics, indent=2, sort_keys=True))
 
 
+class PredictionResult(TypedDict):
+    input_csv: str
+    leak_probability: float
+    alert_threshold: float
+    leak_alert: bool
+    predicted_leak_type: str | None
+    leak_type_probabilities: dict[str, float]
+    binary_window_seconds: float
+    type_window_seconds: float
+
+
 def features_for_artifact(
     csv_path: str | Path, artifact: dict[str, Any]
 ) -> pd.DataFrame:
@@ -290,20 +301,23 @@ def features_for_artifact(
     return features.reindex(columns=artifact["feature_columns"])
 
 
-def run_predict(args: argparse.Namespace) -> None:
-    binary_artifact = load_artifact(args.binary_model)
-    type_artifact = load_artifact(args.type_model)
+def predict_scenario(
+    csv_path: str | Path,
+    binary_artifact: dict[str, Any],
+    type_artifact: dict[str, Any],
+    input_name: str | None = None,
+) -> PredictionResult:
     if type_artifact.get("model_kind") != "leak_type":
         raise ValueError("Type artifact is not a leak-type model")
 
-    binary_features = features_for_artifact(args.input_csv, binary_artifact)
+    binary_features = features_for_artifact(csv_path, binary_artifact)
     leak_probability = float(
         leak_probabilities(binary_artifact["model"], binary_features)[0]
     )
     threshold = float(binary_artifact["threshold"])
     leak_alert = leak_probability >= threshold
 
-    type_features = features_for_artifact(args.input_csv, type_artifact)
+    type_features = features_for_artifact(csv_path, type_artifact)
     type_probabilities = type_artifact["model"].predict_proba(type_features)[0]
     class_names = type_artifact["class_names"]
     type_results = {
@@ -312,18 +326,26 @@ def run_predict(args: argparse.Namespace) -> None:
     }
     most_likely_type = max(type_results, key=lambda name: type_results[name])
 
-    result = {
-        "input_csv": str(args.input_csv),
+    return {
+        "input_csv": input_name or str(csv_path),
         "leak_probability": leak_probability,
         "alert_threshold": threshold,
         "leak_alert": leak_alert,
         "predicted_leak_type": most_likely_type if leak_alert else None,
         "leak_type_probabilities": type_results,
-        "binary_window_seconds": binary_artifact["feature_config"][
-            "max_time_seconds"
-        ],
-        "type_window_seconds": type_artifact["feature_config"]["max_time_seconds"],
+        "binary_window_seconds": float(
+            binary_artifact["feature_config"]["max_time_seconds"]
+        ),
+        "type_window_seconds": float(
+            type_artifact["feature_config"]["max_time_seconds"]
+        ),
     }
+
+
+def run_predict(args: argparse.Namespace) -> None:
+    binary_artifact = load_artifact(args.binary_model)
+    type_artifact = load_artifact(args.type_model)
+    result = predict_scenario(args.input_csv, binary_artifact, type_artifact)
     if args.output:
         write_json(Path(args.output), result)
         print(f"Saved prediction: {args.output}")
