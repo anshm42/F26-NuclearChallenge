@@ -1,6 +1,6 @@
 # F26 Nuclear Challenge — Leak Probability Model
 
-This project trains a calibrated gradient-boosting classifier to estimate the probability that one NPPAD simulation represents a leak/break event.
+This project trains a calibrated XGBoost classifier to estimate the probability that one NPPAD simulation represents a leak/break event.
 
 > This is a research prototype built from simulated data. It is not a validated nuclear safety system and must not be used as the sole basis for operational decisions.
 
@@ -46,7 +46,13 @@ These variables directly encode simulated break/leak flow or accumulated leakage
 
 ## Setup
 
-Use Python 3.10 or newer:
+Use Python 3.10 or newer. On macOS, install XGBoost's OpenMP runtime first:
+
+```bash
+brew install libomp
+```
+
+Then create the environment:
 
 ```bash
 python -m venv .venv
@@ -56,7 +62,7 @@ pip install -e .
 
 ## Train and select a threshold
 
-Training reads only the training and validation directories. Gradient boosting is probability-calibrated using folds within the training data. Validation selects the highest-precision alert threshold that reaches the requested minimum recall.
+Training reads only the training and validation directories. XGBoost is probability-calibrated using folds within the training data. Validation selects the highest-precision alert threshold that reaches the requested minimum recall.
 
 ```bash
 leak-model train \

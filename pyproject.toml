@@ -5,13 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "nppad-leak-detection"
 version = "0.1.0"
-description = "Calibrated gradient-boosting leak detection for NPPAD simulations"
+description = "Calibrated XGBoost leak detection for NPPAD simulations"
 requires-python = ">=3.10"
 dependencies = [
   "joblib>=1.3,<2",
   "numpy>=1.24,<3",
   "pandas>=2.0,<3",
   "scikit-learn>=1.2,<2",
+  "xgboost>=2,<4",
 ]
 
 [project.scripts]

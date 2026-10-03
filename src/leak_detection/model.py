@@ -7,8 +7,6 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from sklearn.calibration import CalibratedClassifierCV
-from sklearn.ensemble import GradientBoostingClassifier
-from sklearn.impute import SimpleImputer
 from sklearn.metrics import (
     average_precision_score,
     brier_score_loss,
@@ -16,13 +14,13 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 from sklearn.model_selection import StratifiedKFold
-from sklearn.pipeline import Pipeline
+from xgboost import XGBClassifier
 
 
 def fit_calibrated_model(
     features: pd.DataFrame, targets: pd.Series, random_state: int = 42
 ) -> CalibratedClassifierCV:
-    """Fit gradient boosting and calibrate probabilities using training data only."""
+    """Fit XGBoost and calibrate probabilities using training data only."""
 
     counts = targets.value_counts()
     if set(counts.index) != {0, 1}:
@@ -31,21 +29,18 @@ def fit_calibrated_model(
     if calibration_folds < 2:
         raise ValueError("Training data needs at least two runs from each class")
 
-    estimator = Pipeline(
-        steps=[
-            ("imputer", SimpleImputer(strategy="median", keep_empty_features=True)),
-            (
-                "classifier",
-                GradientBoostingClassifier(
-                    n_estimators=250,
-                    learning_rate=0.04,
-                    max_depth=3,
-                    min_samples_leaf=3,
-                    subsample=0.8,
-                    random_state=random_state,
-                ),
-            ),
-        ]
+    estimator = XGBClassifier(
+        n_estimators=250,
+        learning_rate=0.04,
+        max_depth=3,
+        min_child_weight=3,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        objective="binary:logistic",
+        eval_metric="logloss",
+        tree_method="hist",
+        random_state=random_state,
+        n_jobs=1,
     )
     cross_validation = StratifiedKFold(
         n_splits=calibration_folds, shuffle=True, random_state=random_state
