@@ -84,11 +84,11 @@ leak-model train \
   --train-dir ML_Dataset/Training \
   --validation-dir ML_Dataset/Validation \
   --output artifacts/leak_model.joblib \
-  --minimum-recall 0.95 \
+  --minimum-recall 1.0 \
   --max-time-seconds 1500
 ```
 
-This writes the model artifact plus validation metrics and per-run predictions. Do not tune the model after inspecting final test results.
+Threshold selection prioritizes recall before precision, accepting more false alarms to avoid missed leaks. This writes the model artifact plus validation metrics and per-run predictions. Do not tune the model after inspecting final test results.
 
 ## Train the optional leak-type model
 

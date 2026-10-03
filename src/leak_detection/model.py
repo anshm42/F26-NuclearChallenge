@@ -131,8 +131,8 @@ def choose_threshold(
             )
             choices.append((precision, float(threshold), recall))
 
-    # Prefer precision, then the stricter threshold when precision ties.
-    return max(choices, key=lambda item: (item[0], item[1]))[1]
+    # Safety-first: avoid missed leaks, then minimize false alarms.
+    return max(choices, key=lambda item: (item[2], item[0], item[1]))[1]
 
 
 def multiclass_metrics(
