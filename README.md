@@ -60,14 +60,29 @@ source .venv/bin/activate
 pip install -e .
 ```
 
+## Create train, validation, and test splits
+
+Use `nuclear_dataset_splitter.py` to allocate complete simulation CSVs. Defaults are 10% training, 45% validation, and 45% testing. All ratios are configurable and must sum to `1.0`:
+
+```bash
+python nuclear_dataset_splitter.py \
+  --input-folder NuclearPowerPlantAccidentData/Operation_csv_data \
+  --output-folder ML_Dataset \
+  --training-ratio 0.10 \
+  --validation-ratio 0.45 \
+  --testing-ratio 0.45
+```
+
+This creates `ML_Dataset/Training`, `ML_Dataset/Validation`, `ML_Dataset/Testing`, a manifest, and a report. Single-run scenarios enter training by default. Existing output is protected unless `--overwrite` is supplied.
+
 ## Train and select a threshold
 
-Training reads only the training and validation directories. XGBoost is probability-calibrated using folds within the training data. Validation selects the highest-precision alert threshold that reaches the requested minimum recall.
+Training reads only the training and validation directories created by `nuclear_dataset_splitter.py`. XGBoost is probability-calibrated using folds within the training data. Validation selects the highest-precision alert threshold that reaches the requested minimum recall.
 
 ```bash
 leak-model train \
-  --train-dir data/train \
-  --validation-dir data/validation \
+  --train-dir ML_Dataset/Training \
+  --validation-dir ML_Dataset/Validation \
   --output artifacts/leak_model.joblib \
   --minimum-recall 0.95 \
   --max-time-seconds 1500
@@ -82,7 +97,7 @@ Run this separately, once the feature window, leak definition, model, and thresh
 ```bash
 leak-model evaluate \
   --model artifacts/leak_model.joblib \
-  --test-dir data/test \
+  --test-dir ML_Dataset/Testing \
   --output-dir reports/final_test
 ```
 

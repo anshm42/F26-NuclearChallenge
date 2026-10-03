@@ -8,8 +8,8 @@ Splits complete reactor-simulation CSV files into:
 
 Default split:
     10% Training
-    50% Validation
-    40% Testing
+    45% Validation
+    45% Testing
 
 Important:
 - Splits complete CSV simulations, not individual time-series rows.
@@ -20,41 +20,45 @@ Important:
 - Does NOT invent leak/cause/severity labels.
 """
 
-from pathlib import Path
-from collections import Counter, defaultdict
+import argparse
 import csv
 import math
 import random
 import shutil
+from collections import Counter, defaultdict
+from pathlib import Path
 
 
 # ============================================================
 # 1. CONFIGURATION
 # ============================================================
 
-TRAINING_RATIO = 0.10
-VALIDATION_RATIO = 0.50
-TESTING_RATIO = 0.40
+parser = argparse.ArgumentParser(description="Split complete NPPAD simulation runs.")
+parser.add_argument("--input-folder", default="Operation_csv_data")
+parser.add_argument("--output-folder", default="ML_Dataset")
+parser.add_argument("--training-ratio", type=float, default=0.10)
+parser.add_argument("--validation-ratio", type=float, default=0.45)
+parser.add_argument("--testing-ratio", type=float, default=0.45)
+parser.add_argument("--random-seed", type=int, default=42)
+parser.add_argument(
+    "--single-file-policy",
+    choices=("training", "validation", "testing", "exclude"),
+    default="training",
+)
+parser.add_argument(
+    "--overwrite",
+    action="store_true",
+    help="Replace an existing output folder.",
+)
+arguments = parser.parse_args()
 
-RANDOM_SEED = 42
-
-# Point this to the folder containing scenario folders.
-# Example:
-# INPUT_FOLDER = "Operation_csv_data"
-INPUT_FOLDER = "Operation_csv_data"
-
-# The splitter creates this folder automatically.
-OUTPUT_FOLDER = "ML_Dataset"
-
-# A scenario with only one complete simulation cannot be split
-# across all three datasets without breaking the simulation.
-#
-# Options:
-#   "training"
-#   "validation"
-#   "testing"
-#   "exclude"
-SINGLE_FILE_POLICY = "training"
+TRAINING_RATIO = arguments.training_ratio
+VALIDATION_RATIO = arguments.validation_ratio
+TESTING_RATIO = arguments.testing_ratio
+RANDOM_SEED = arguments.random_seed
+INPUT_FOLDER = arguments.input_folder
+OUTPUT_FOLDER = arguments.output_folder
+SINGLE_FILE_POLICY = arguments.single_file_policy
 
 
 # ============================================================
@@ -115,6 +119,11 @@ if not scenarios:
 output_path = Path(OUTPUT_FOLDER)
 
 if output_path.exists():
+    if not arguments.overwrite:
+        raise FileExistsError(
+            f"Output folder already exists: {output_path.resolve()}. "
+            "Use --overwrite to replace it."
+        )
     shutil.rmtree(output_path)
 
 for dataset in ("Training", "Validation", "Testing"):
