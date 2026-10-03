@@ -104,6 +104,20 @@ leak-model train-types \
 
 Validation output includes multiclass log loss, accuracy, top-2 accuracy, per-type recall, and a confusion matrix. Per-run output includes one probability column for every leak type.
 
+## Analyze one simulation
+
+Run both saved models on one operation CSV:
+
+```bash
+leak-model predict \
+  --binary-model artifacts/leak_model.joblib \
+  --type-model artifacts/leak_type_model.joblib \
+  --input-csv path/to/scenario.csv \
+  --output prediction.json
+```
+
+The JSON result contains the leak probability, safety-first alert decision, alert threshold, most likely leak type, all eight type probabilities, and each model's time window. Leak type is reported only when the binary model raises an alert.
+
 ## Final held-out evaluation
 
 Run this separately, once the feature window, leak definition, model, and threshold are frozen:

@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from argparse import Namespace
@@ -8,6 +9,7 @@ import pandas as pd
 from leak_detection.cli import (
     run_evaluate,
     run_evaluate_types,
+    run_predict,
     run_train,
     run_train_types,
 )
@@ -34,6 +36,12 @@ class CliIntegrationTests(unittest.TestCase):
             validation = root / "validation"
             test = root / "test"
             leak_classes = ("FLB", "LOCA", "SGATR")
+            for run_number in range(1, 7):
+                self.write_run(train, "Normal", run_number, 0.05 * run_number)
+            for run_number in range(1, 3):
+                self.write_run(validation, "Normal", run_number, 0.1 * run_number)
+                self.write_run(test, "Normal", run_number, 0.15 * run_number)
+
             for class_index, scenario in enumerate(leak_classes, start=1):
                 for run_number in range(1, 7):
                     self.write_run(
@@ -75,6 +83,32 @@ class CliIntegrationTests(unittest.TestCase):
             self.assertTrue(
                 (report_directory / "leak_type_test_predictions.csv").exists()
             )
+
+            binary_artifact = root / "artifacts" / "binary_model.joblib"
+            run_train(
+                Namespace(
+                    train_dir=str(train),
+                    validation_dir=str(validation),
+                    output=str(binary_artifact),
+                    positive_classes=leak_classes,
+                    exclude_columns=(),
+                    max_time_seconds=20.0,
+                    minimum_recall=1.0,
+                    random_state=42,
+                )
+            )
+            prediction_path = root / "prediction.json"
+            run_predict(
+                Namespace(
+                    binary_model=str(binary_artifact),
+                    type_model=str(artifact),
+                    input_csv=str(test / "LOCA" / "1.csv"),
+                    output=str(prediction_path),
+                )
+            )
+            prediction = json.loads(prediction_path.read_text(encoding="utf-8"))
+            self.assertIn("leak_probability", prediction)
+            self.assertEqual(set(prediction["leak_type_probabilities"]), set(leak_classes))
 
     def test_train_then_evaluate_without_test_data_in_training(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

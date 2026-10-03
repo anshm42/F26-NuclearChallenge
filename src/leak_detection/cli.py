@@ -14,6 +14,7 @@ from .features import (
     DEFAULT_LEAK_CLASSES,
     DIRECT_LEAK_COLUMNS,
     FeatureConfig,
+    extract_run_features,
     load_split,
 )
 from .model import (
@@ -276,9 +277,62 @@ def run_evaluate_types(args: argparse.Namespace) -> None:
     print(json.dumps(metrics, indent=2, sort_keys=True))
 
 
+def features_for_artifact(
+    csv_path: str | Path, artifact: dict[str, Any]
+) -> pd.DataFrame:
+    stored_config = artifact["feature_config"]
+    config = FeatureConfig(
+        max_time_seconds=float(stored_config["max_time_seconds"]),
+        time_column=str(stored_config["time_column"]),
+        excluded_columns=tuple(stored_config["excluded_columns"]),
+    )
+    features = extract_run_features(csv_path, config).to_frame().T
+    return features.reindex(columns=artifact["feature_columns"])
+
+
+def run_predict(args: argparse.Namespace) -> None:
+    binary_artifact = load_artifact(args.binary_model)
+    type_artifact = load_artifact(args.type_model)
+    if type_artifact.get("model_kind") != "leak_type":
+        raise ValueError("Type artifact is not a leak-type model")
+
+    binary_features = features_for_artifact(args.input_csv, binary_artifact)
+    leak_probability = float(
+        leak_probabilities(binary_artifact["model"], binary_features)[0]
+    )
+    threshold = float(binary_artifact["threshold"])
+    leak_alert = leak_probability >= threshold
+
+    type_features = features_for_artifact(args.input_csv, type_artifact)
+    type_probabilities = type_artifact["model"].predict_proba(type_features)[0]
+    class_names = type_artifact["class_names"]
+    type_results = {
+        name: float(type_probabilities[index])
+        for index, name in enumerate(class_names)
+    }
+    most_likely_type = max(type_results, key=lambda name: type_results[name])
+
+    result = {
+        "input_csv": str(args.input_csv),
+        "leak_probability": leak_probability,
+        "alert_threshold": threshold,
+        "leak_alert": leak_alert,
+        "predicted_leak_type": most_likely_type if leak_alert else None,
+        "leak_type_probabilities": type_results,
+        "binary_window_seconds": binary_artifact["feature_config"][
+            "max_time_seconds"
+        ],
+        "type_window_seconds": type_artifact["feature_config"]["max_time_seconds"],
+    }
+    if args.output:
+        write_json(Path(args.output), result)
+        print(f"Saved prediction: {args.output}")
+    print(json.dumps(result, indent=2, sort_keys=True))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Train or evaluate calibrated XGBoost leak models."
+        description="Train, evaluate, or run calibrated XGBoost leak models."
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -340,6 +394,15 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate_types.add_argument("--test-dir", required=True)
     evaluate_types.add_argument("--output-dir", default="reports/final_type_test")
     evaluate_types.set_defaults(handler=run_evaluate_types)
+
+    predict = subparsers.add_parser(
+        "predict", help="Analyze one simulation CSV with both saved models."
+    )
+    predict.add_argument("--binary-model", required=True)
+    predict.add_argument("--type-model", required=True)
+    predict.add_argument("--input-csv", required=True)
+    predict.add_argument("--output")
+    predict.set_defaults(handler=run_predict)
     return parser
 
 
