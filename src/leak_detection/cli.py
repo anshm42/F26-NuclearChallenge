@@ -390,7 +390,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=(),
         help="Additional sensor columns to exclude beyond direct leak fields.",
     )
-    train.add_argument("--max-time-seconds", type=float, default=1500.0)
+    train.add_argument("--max-time-seconds", type=float, default=300.0)
     train.add_argument("--minimum-recall", type=float, default=1.0)
     train.add_argument("--random-state", type=int, default=42)
     train.set_defaults(handler=run_train)
@@ -411,7 +411,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=comma_separated,
         default=(),
     )
-    train_types.add_argument("--max-time-seconds", type=float, default=1500.0)
+    train_types.add_argument("--max-time-seconds", type=float, default=300.0)
     train_types.add_argument("--random-state", type=int, default=42)
     train_types.set_defaults(handler=run_train_types)
 
