@@ -214,63 +214,79 @@ def load_artifact(path: str | Path) -> dict[str, Any]:
     return artifact
 
 
-def run_evaluate(args: argparse.Namespace) -> None:
-    artifact = load_artifact(args.model)
+def config_from_artifact(artifact: dict[str, Any]) -> FeatureConfig:
     stored_config = artifact["feature_config"]
-    config = FeatureConfig(
+    return FeatureConfig(
         max_time_seconds=float(stored_config["max_time_seconds"]),
         time_column=str(stored_config["time_column"]),
         excluded_columns=tuple(stored_config["excluded_columns"]),
     )
+
+
+def evaluate_binary_artifact(
+    test_directory: str | Path, artifact: dict[str, Any]
+) -> tuple[dict[str, float | int | None], pd.DataFrame]:
+    config = config_from_artifact(artifact)
     test_features, test_targets, test_metadata = load_split(
-        args.test_dir, artifact["positive_classes"], config
+        test_directory, artifact["positive_classes"], config
     )
     test_features = test_features.reindex(columns=artifact["feature_columns"])
     probabilities = leak_probabilities(artifact["model"], test_features)
-    metrics = classification_metrics(test_targets, probabilities, artifact["threshold"])
+    threshold = float(artifact["threshold"])
+    metrics = classification_metrics(test_targets, probabilities, threshold)
+    predictions = predictions_frame(
+        test_metadata, test_targets, probabilities, threshold
+    )
+    return metrics, predictions
+
+
+def run_evaluate(args: argparse.Namespace) -> None:
+    artifact = load_artifact(args.model)
+    metrics, predictions = evaluate_binary_artifact(args.test_dir, artifact)
 
     output_directory = Path(args.output_dir)
     output_directory.mkdir(parents=True, exist_ok=True)
     metrics_path = output_directory / "test_metrics.json"
     predictions_path = output_directory / "test_predictions.csv"
     write_json(metrics_path, metrics)
-    predictions_frame(
-        test_metadata, test_targets, probabilities, artifact["threshold"]
-    ).to_csv(predictions_path, index=False)
+    predictions.to_csv(predictions_path, index=False)
 
     print(f"Saved test metrics: {metrics_path}")
     print(f"Saved test predictions: {predictions_path}")
     print(json.dumps(metrics, indent=2, sort_keys=True))
 
 
-def run_evaluate_types(args: argparse.Namespace) -> None:
-    artifact = load_artifact(args.model)
+def evaluate_type_artifact(
+    test_directory: str | Path, artifact: dict[str, Any]
+) -> tuple[dict[str, Any], pd.DataFrame]:
     if artifact.get("model_kind") != "leak_type":
         raise ValueError("Artifact is not a leak-type model")
-    stored_config = artifact["feature_config"]
-    config = FeatureConfig(
-        max_time_seconds=float(stored_config["max_time_seconds"]),
-        time_column=str(stored_config["time_column"]),
-        excluded_columns=tuple(stored_config["excluded_columns"]),
-    )
+    config = config_from_artifact(artifact)
     class_names = artifact["class_names"]
     class_indices = {name: index for index, name in enumerate(class_names)}
     test_features, test_metadata = load_type_split(
-        args.test_dir, class_names, config
+        test_directory, class_names, config
     )
     test_targets = test_metadata["scenario"].map(class_indices).astype(int)
     test_features = test_features.reindex(columns=artifact["feature_columns"])
     probabilities = artifact["model"].predict_proba(test_features)
     metrics = multiclass_metrics(test_targets, probabilities, class_names)
+    predictions = type_predictions_frame(
+        test_metadata, test_targets, probabilities, class_names
+    )
+    return metrics, predictions
+
+
+def run_evaluate_types(args: argparse.Namespace) -> None:
+    artifact = load_artifact(args.model)
+    metrics, predictions = evaluate_type_artifact(args.test_dir, artifact)
 
     output_directory = Path(args.output_dir)
     output_directory.mkdir(parents=True, exist_ok=True)
     metrics_path = output_directory / "leak_type_test_metrics.json"
     predictions_path = output_directory / "leak_type_test_predictions.csv"
     write_json(metrics_path, metrics)
-    type_predictions_frame(
-        test_metadata, test_targets, probabilities, class_names
-    ).to_csv(predictions_path, index=False)
+    predictions.to_csv(predictions_path, index=False)
 
     print(f"Saved leak-type test metrics: {metrics_path}")
     print(f"Saved leak-type test predictions: {predictions_path}")
@@ -291,12 +307,7 @@ class PredictionResult(TypedDict):
 def features_for_artifact(
     csv_path: str | Path, artifact: dict[str, Any]
 ) -> pd.DataFrame:
-    stored_config = artifact["feature_config"]
-    config = FeatureConfig(
-        max_time_seconds=float(stored_config["max_time_seconds"]),
-        time_column=str(stored_config["time_column"]),
-        excluded_columns=tuple(stored_config["excluded_columns"]),
-    )
+    config = config_from_artifact(artifact)
     features = extract_run_features(csv_path, config).to_frame().T
     return features.reindex(columns=artifact["feature_columns"])
 

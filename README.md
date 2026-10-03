@@ -126,7 +126,7 @@ Launch the local drag-and-drop interface after training both models:
 streamlit run streamlit_app.py
 ```
 
-Upload one operation CSV. The page validates its size, runs the same prediction path as the CLI, and displays the leak alert and conditional leak-type probabilities. Model artifacts stay on the server and must come from a trusted source.
+Upload one operation CSV. The page validates its size, runs the same prediction path as the CLI, and displays the leak alert and conditional leak-type probabilities. The full test-set section evaluates both frozen models across `ML_Dataset/Testing` and displays metrics and confusion matrices. Model artifacts stay on the server and must come from a trusted source.
 
 ## Final held-out evaluation
 

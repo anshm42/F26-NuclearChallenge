@@ -5,10 +5,16 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
-from leak_detection.cli import load_artifact, predict_scenario
+from leak_detection.cli import (
+    evaluate_binary_artifact,
+    evaluate_type_artifact,
+    load_artifact,
+    predict_scenario,
+)
 
 BINARY_MODEL = Path("artifacts/leak_model.joblib")
 TYPE_MODEL = Path("artifacts/leak_type_model.joblib")
+TEST_DATA = Path("ML_Dataset/Testing")
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
 st.set_page_config(
@@ -93,6 +99,7 @@ with st.sidebar:
         st.success("Models ready")
     st.caption(f"Binary model: `{BINARY_MODEL}`")
     st.caption(f"Type model: `{TYPE_MODEL}`")
+    st.caption(f"Test data: `{TEST_DATA}`")
     st.divider()
     st.caption("Accepted input: one operation CSV, maximum 25 MB.")
 
@@ -160,3 +167,76 @@ if st.button("Analyze scenario", type="primary", disabled=uploaded is None or bo
                 or key not in {"predicted_leak_type", "leak_type_probabilities"}
             }
             st.json(visible_result)
+
+st.divider()
+st.subheader("Full test-set evaluation")
+st.caption("Evaluate every complete simulation in the testing split with the frozen models. Do not use these results to tune the models.")
+test_data_missing = not TEST_DATA.is_dir()
+if test_data_missing:
+    st.error(f"Test directory not found: {TEST_DATA}")
+
+if st.button(
+    "Evaluate full test set",
+    disabled=bool(missing) or test_data_missing,
+    help="Runs both models across ML_Dataset/Testing.",
+):
+    try:
+        with st.spinner("Evaluating all test simulations…"):
+            binary_metrics, _ = evaluate_binary_artifact(
+                TEST_DATA, trusted_artifact(str(BINARY_MODEL))
+            )
+            type_metrics, _ = evaluate_type_artifact(
+                TEST_DATA, trusted_artifact(str(TYPE_MODEL))
+            )
+            st.session_state["full_test_results"] = (
+                binary_metrics,
+                type_metrics,
+            )
+    except (KeyError, TypeError, ValueError, OSError, pd.errors.ParserError) as error:
+        st.error(f"Could not evaluate the test set: {error}")
+
+if "full_test_results" in st.session_state:
+    binary_metrics, type_metrics = st.session_state["full_test_results"]
+
+    st.markdown("### Binary leak detection")
+    binary_columns = st.columns(5)
+    binary_columns[0].metric("Runs", int(binary_metrics["runs"]))
+    binary_columns[1].metric("Recall", f'{float(binary_metrics["recall"]):.1%}')
+    binary_columns[2].metric("Precision", f'{float(binary_metrics["precision"]):.1%}')
+    binary_columns[3].metric("False negatives", int(binary_metrics["false_negatives"]))
+    binary_columns[4].metric("False positives", int(binary_metrics["false_positives"]))
+
+    binary_matrix = pd.DataFrame(
+        [
+            [binary_metrics["true_negatives"], binary_metrics["false_positives"]],
+            [binary_metrics["false_negatives"], binary_metrics["true_positives"]],
+        ],
+        index=["Actual no leak", "Actual leak"],
+        columns=["Predicted no leak", "Predicted leak"],
+    )
+    st.markdown("#### Binary confusion matrix")
+    st.dataframe(binary_matrix, width="stretch")
+
+    st.markdown("### Leak-type classification")
+    type_columns = st.columns(4)
+    type_columns[0].metric("Leak runs", int(type_metrics["runs"]))
+    type_columns[1].metric("Accuracy", f'{float(type_metrics["accuracy"]):.1%}')
+    type_columns[2].metric(
+        "Top-2 accuracy", f'{float(type_metrics["top_2_accuracy"]):.1%}'
+    )
+    type_columns[3].metric("Log loss", f'{float(type_metrics["log_loss"]):.3f}')
+
+    class_names = type_metrics["class_names"]
+    type_matrix = pd.DataFrame(
+        type_metrics["confusion_matrix"],
+        index=[f"Actual {name}" for name in class_names],
+        columns=[f"Predicted {name}" for name in class_names],
+    )
+    recall_frame = pd.DataFrame.from_dict(
+        type_metrics["per_type_recall"], orient="index", columns=["Recall"]
+    )
+    recall_frame.index.name = "Leak type"
+    st.markdown("#### Recall by leak type")
+    st.dataframe(recall_frame.style.format("{:.1%}"), width="stretch")
+    st.markdown("#### Leak-type confusion matrix")
+    st.dataframe(type_matrix, width="stretch")
