@@ -5,7 +5,12 @@ from pathlib import Path
 
 import pandas as pd
 
-from leak_detection.cli import run_evaluate, run_train
+from leak_detection.cli import (
+    run_evaluate,
+    run_evaluate_types,
+    run_train,
+    run_train_types,
+)
 
 
 class CliIntegrationTests(unittest.TestCase):
@@ -21,6 +26,55 @@ class CliIntegrationTests(unittest.TestCase):
                 "WLR": [0.0, offset, 2 * offset],
             }
         ).to_csv(path, index=False)
+
+    def test_train_then_evaluate_leak_types(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            train = root / "train"
+            validation = root / "validation"
+            test = root / "test"
+            leak_classes = ("FLB", "LOCA", "SGATR")
+            for class_index, scenario in enumerate(leak_classes, start=1):
+                for run_number in range(1, 7):
+                    self.write_run(
+                        train, scenario, run_number, class_index * 2.0 + run_number
+                    )
+                for run_number in range(1, 3):
+                    self.write_run(
+                        validation, scenario, run_number, class_index * 3.0 + run_number
+                    )
+                    self.write_run(
+                        test, scenario, run_number, class_index * 4.0 + run_number
+                    )
+
+            artifact = root / "artifacts" / "type_model.joblib"
+            run_train_types(
+                Namespace(
+                    train_dir=str(train),
+                    validation_dir=str(validation),
+                    output=str(artifact),
+                    leak_classes=leak_classes,
+                    exclude_columns=(),
+                    max_time_seconds=20.0,
+                    random_state=42,
+                )
+            )
+            self.assertTrue(artifact.exists())
+
+            report_directory = root / "type_reports"
+            run_evaluate_types(
+                Namespace(
+                    model=str(artifact),
+                    test_dir=str(test),
+                    output_dir=str(report_directory),
+                )
+            )
+            self.assertTrue(
+                (report_directory / "leak_type_test_metrics.json").exists()
+            )
+            self.assertTrue(
+                (report_directory / "leak_type_test_predictions.csv").exists()
+            )
 
     def test_train_then_evaluate_without_test_data_in_training(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

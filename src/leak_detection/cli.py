@@ -20,7 +20,9 @@ from .model import (
     choose_threshold,
     classification_metrics,
     fit_calibrated_model,
+    fit_calibrated_type_model,
     leak_probabilities,
+    multiclass_metrics,
 )
 
 ARTIFACT_VERSION = 1
@@ -48,6 +50,35 @@ def predictions_frame(
     result["actual_is_leak"] = targets.to_numpy()
     result["leak_probability"] = probabilities
     result["predicted_is_leak"] = (probabilities >= threshold).astype(int)
+    return result
+
+
+def load_type_split(
+    directory: str | Path,
+    leak_classes: tuple[str, ...] | list[str],
+    config: FeatureConfig,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    features, _, metadata = load_split(directory, leak_classes, config)
+    mask = metadata["scenario"].isin(leak_classes).to_numpy()
+    return (
+        features.loc[mask].reset_index(drop=True),
+        metadata.loc[mask].reset_index(drop=True),
+    )
+
+
+def type_predictions_frame(
+    metadata: pd.DataFrame,
+    targets: pd.Series,
+    probabilities: Any,
+    class_names: list[str],
+) -> pd.DataFrame:
+    result = metadata.copy()
+    result["actual_type"] = [class_names[index] for index in targets]
+    result["predicted_type"] = [
+        class_names[index] for index in probabilities.argmax(axis=1)
+    ]
+    for index, class_name in enumerate(class_names):
+        result[f"probability_{class_name}"] = probabilities[:, index]
     return result
 
 
@@ -110,6 +141,71 @@ def run_train(args: argparse.Namespace) -> None:
     print(json.dumps(metrics, indent=2, sort_keys=True))
 
 
+def run_train_types(args: argparse.Namespace) -> None:
+    excluded = tuple(sorted(set(DIRECT_LEAK_COLUMNS) | set(args.exclude_columns)))
+    config = FeatureConfig(
+        max_time_seconds=args.max_time_seconds,
+        excluded_columns=excluded,
+    )
+    class_names = sorted(args.leak_classes)
+    class_indices = {name: index for index, name in enumerate(class_names)}
+
+    train_features, train_metadata = load_type_split(
+        args.train_dir, args.leak_classes, config
+    )
+    validation_features, validation_metadata = load_type_split(
+        args.validation_dir, args.leak_classes, config
+    )
+    missing = set(class_names) - set(train_metadata["scenario"])
+    if missing:
+        raise ValueError(f"Training data is missing leak types: {sorted(missing)}")
+
+    train_targets = train_metadata["scenario"].map(class_indices).astype(int)
+    validation_targets = validation_metadata["scenario"].map(class_indices).astype(int)
+    feature_columns = train_features.columns.tolist()
+    validation_features = validation_features.reindex(columns=feature_columns)
+    model = fit_calibrated_type_model(
+        train_features, train_targets, len(class_names), args.random_state
+    )
+    validation_probabilities = model.predict_proba(validation_features)
+    metrics = multiclass_metrics(
+        validation_targets, validation_probabilities, class_names
+    )
+
+    artifact = {
+        "artifact_version": ARTIFACT_VERSION,
+        "model_kind": "leak_type",
+        "model": model,
+        "feature_columns": feature_columns,
+        "feature_config": {
+            "max_time_seconds": config.max_time_seconds,
+            "time_column": config.time_column,
+            "excluded_columns": list(config.excluded_columns),
+        },
+        "class_names": class_names,
+        "validation_metrics": metrics,
+        "random_state": args.random_state,
+    }
+    artifact_path = Path(args.output)
+    artifact_path.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(artifact, artifact_path)
+
+    metrics_path = artifact_path.with_suffix(".validation_metrics.json")
+    predictions_path = artifact_path.with_suffix(".validation_predictions.csv")
+    write_json(metrics_path, metrics)
+    type_predictions_frame(
+        validation_metadata,
+        validation_targets,
+        validation_probabilities,
+        class_names,
+    ).to_csv(predictions_path, index=False)
+
+    print(f"Saved leak-type model: {artifact_path}")
+    print(f"Saved validation metrics: {metrics_path}")
+    print(f"Saved validation predictions: {predictions_path}")
+    print(json.dumps(metrics, indent=2, sort_keys=True))
+
+
 def load_artifact(path: str | Path) -> dict[str, Any]:
     artifact = joblib.load(path)
     if not isinstance(artifact, dict) or artifact.get("artifact_version") != ARTIFACT_VERSION:
@@ -146,9 +242,43 @@ def run_evaluate(args: argparse.Namespace) -> None:
     print(json.dumps(metrics, indent=2, sort_keys=True))
 
 
+def run_evaluate_types(args: argparse.Namespace) -> None:
+    artifact = load_artifact(args.model)
+    if artifact.get("model_kind") != "leak_type":
+        raise ValueError("Artifact is not a leak-type model")
+    stored_config = artifact["feature_config"]
+    config = FeatureConfig(
+        max_time_seconds=float(stored_config["max_time_seconds"]),
+        time_column=str(stored_config["time_column"]),
+        excluded_columns=tuple(stored_config["excluded_columns"]),
+    )
+    class_names = artifact["class_names"]
+    class_indices = {name: index for index, name in enumerate(class_names)}
+    test_features, test_metadata = load_type_split(
+        args.test_dir, class_names, config
+    )
+    test_targets = test_metadata["scenario"].map(class_indices).astype(int)
+    test_features = test_features.reindex(columns=artifact["feature_columns"])
+    probabilities = artifact["model"].predict_proba(test_features)
+    metrics = multiclass_metrics(test_targets, probabilities, class_names)
+
+    output_directory = Path(args.output_dir)
+    output_directory.mkdir(parents=True, exist_ok=True)
+    metrics_path = output_directory / "leak_type_test_metrics.json"
+    predictions_path = output_directory / "leak_type_test_predictions.csv"
+    write_json(metrics_path, metrics)
+    type_predictions_frame(
+        test_metadata, test_targets, probabilities, class_names
+    ).to_csv(predictions_path, index=False)
+
+    print(f"Saved leak-type test metrics: {metrics_path}")
+    print(f"Saved leak-type test predictions: {predictions_path}")
+    print(json.dumps(metrics, indent=2, sort_keys=True))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Train or evaluate a calibrated gradient-boosting leak detector."
+        description="Train or evaluate calibrated XGBoost leak models."
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -175,6 +305,26 @@ def build_parser() -> argparse.ArgumentParser:
     train.add_argument("--random-state", type=int, default=42)
     train.set_defaults(handler=run_train)
 
+    train_types = subparsers.add_parser(
+        "train-types", help="Fit a second-stage leak-type probability model."
+    )
+    train_types.add_argument("--train-dir", required=True)
+    train_types.add_argument("--validation-dir", required=True)
+    train_types.add_argument("--output", default="artifacts/leak_type_model.joblib")
+    train_types.add_argument(
+        "--leak-classes",
+        type=comma_separated,
+        default=tuple(sorted(DEFAULT_LEAK_CLASSES)),
+    )
+    train_types.add_argument(
+        "--exclude-columns",
+        type=comma_separated,
+        default=(),
+    )
+    train_types.add_argument("--max-time-seconds", type=float, default=1500.0)
+    train_types.add_argument("--random-state", type=int, default=42)
+    train_types.set_defaults(handler=run_train_types)
+
     evaluate = subparsers.add_parser(
         "evaluate", help="Evaluate one finalized artifact on the untouched test split."
     )
@@ -182,6 +332,14 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--test-dir", required=True)
     evaluate.add_argument("--output-dir", default="reports/final_test")
     evaluate.set_defaults(handler=run_evaluate)
+
+    evaluate_types = subparsers.add_parser(
+        "evaluate-types", help="Evaluate a frozen leak-type model."
+    )
+    evaluate_types.add_argument("--model", required=True)
+    evaluate_types.add_argument("--test-dir", required=True)
+    evaluate_types.add_argument("--output-dir", default="reports/final_type_test")
+    evaluate_types.set_defaults(handler=run_evaluate_types)
     return parser
 
 

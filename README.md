@@ -90,6 +90,20 @@ leak-model train \
 
 This writes the model artifact plus validation metrics and per-run predictions. Do not tune the model after inspecting final test results.
 
+## Train the optional leak-type model
+
+The second-stage model uses leak runs only. It estimates probabilities for `LOCA`, `LOCAC`, `SGATR`, `SGBTR`, `FLB`, `LLB`, `SLBIC`, and `SLBOC`. These probabilities are conditional on the binary model first detecting a likely leak.
+
+```bash
+leak-model train-types \
+  --train-dir ML_Dataset/Training \
+  --validation-dir ML_Dataset/Validation \
+  --output artifacts/leak_type_model.joblib \
+  --max-time-seconds 1500
+```
+
+Validation output includes multiclass log loss, accuracy, top-2 accuracy, per-type recall, and a confusion matrix. Per-run output includes one probability column for every leak type.
+
 ## Final held-out evaluation
 
 Run this separately, once the feature window, leak definition, model, and threshold are frozen:
@@ -102,6 +116,15 @@ leak-model evaluate \
 ```
 
 Reported metrics include ROC AUC, average precision, Brier score (probability calibration), precision, recall, and the full confusion matrix counts. For leak detection, pay particular attention to false negatives and recall rather than accuracy alone.
+
+Evaluate the frozen leak-type model separately:
+
+```bash
+leak-model evaluate-types \
+  --model artifacts/leak_type_model.joblib \
+  --test-dir ML_Dataset/Testing \
+  --output-dir reports/final_type_test
+```
 
 ## Tests
 

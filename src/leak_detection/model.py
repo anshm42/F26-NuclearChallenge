@@ -11,6 +11,7 @@ from sklearn.metrics import (
     average_precision_score,
     brier_score_loss,
     confusion_matrix,
+    log_loss,
     roc_auc_score,
 )
 from sklearn.model_selection import StratifiedKFold
@@ -38,6 +39,47 @@ def fit_calibrated_model(
         colsample_bytree=0.8,
         objective="binary:logistic",
         eval_metric="logloss",
+        tree_method="hist",
+        random_state=random_state,
+        n_jobs=1,
+    )
+    cross_validation = StratifiedKFold(
+        n_splits=calibration_folds, shuffle=True, random_state=random_state
+    )
+    calibrated = CalibratedClassifierCV(
+        estimator=estimator,
+        method="sigmoid",
+        cv=cross_validation,
+    )
+    calibrated.fit(features, targets)
+    return calibrated
+
+
+def fit_calibrated_type_model(
+    features: pd.DataFrame,
+    targets: pd.Series,
+    class_count: int,
+    random_state: int = 42,
+) -> CalibratedClassifierCV:
+    """Fit calibrated multiclass XGBoost using leak runs only."""
+
+    counts = targets.value_counts()
+    if len(counts) != class_count or set(counts.index) != set(range(class_count)):
+        raise ValueError("Training data must contain every configured leak type")
+    calibration_folds = min(5, int(counts.min()))
+    if calibration_folds < 2:
+        raise ValueError("Training data needs at least two runs from each leak type")
+
+    estimator = XGBClassifier(
+        n_estimators=250,
+        learning_rate=0.04,
+        max_depth=3,
+        min_child_weight=3,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        objective="multi:softprob",
+        num_class=class_count,
+        eval_metric="mlogloss",
         tree_method="hist",
         random_state=random_state,
         n_jobs=1,
@@ -91,6 +133,39 @@ def choose_threshold(
 
     # Prefer precision, then the stricter threshold when precision ties.
     return max(choices, key=lambda item: (item[0], item[1]))[1]
+
+
+def multiclass_metrics(
+    targets: pd.Series | np.ndarray,
+    probabilities: np.ndarray,
+    class_names: list[str],
+) -> dict[str, Any]:
+    """Compute probability, accuracy, and per-type recall metrics."""
+
+    targets_array = np.asarray(targets, dtype=int)
+    predictions = np.argmax(probabilities, axis=1)
+    labels = np.arange(len(class_names))
+    matrix = confusion_matrix(targets_array, predictions, labels=labels)
+    top_k = min(2, len(class_names))
+    top_predictions = np.argsort(probabilities, axis=1)[:, -top_k:]
+
+    per_type_recall = {}
+    for index, name in enumerate(class_names):
+        actual_count = int(np.sum(targets_array == index))
+        correct_count = int(matrix[index, index])
+        per_type_recall[name] = correct_count / actual_count if actual_count else None
+
+    return {
+        "runs": int(targets_array.size),
+        "accuracy": float(np.mean(predictions == targets_array)),
+        "top_2_accuracy": float(
+            np.mean([target in choices for target, choices in zip(targets_array, top_predictions)])
+        ),
+        "log_loss": float(log_loss(targets_array, probabilities, labels=labels)),
+        "per_type_recall": per_type_recall,
+        "confusion_matrix": matrix.astype(int).tolist(),
+        "class_names": class_names,
+    }
 
 
 def classification_metrics(
