@@ -1,2 +1,0 @@
-[console_scripts]
-leak-model = leak_detection.cli:main
