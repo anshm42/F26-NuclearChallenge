@@ -105,7 +105,7 @@ st.markdown(
     .status-card {
         border: 1px solid #595959;
         border-left: 7px solid var(--signal);
-        background: rgba(23, 23, 23, 0.98);
+        background: var(--ink);
         padding: 1rem 1.25rem;
         margin: 0.5rem 0 1.25rem;
         text-transform: uppercase;
@@ -204,7 +204,8 @@ if st.button("Analyze scenario", type="primary", disabled=uploaded is None or bo
         probability = float(result["leak_probability"])
         threshold = float(result["alert_threshold"])
         alert = bool(result["leak_alert"])
-        status = "SCRAM! Leak Detected!" if alert else "No leak alert"
+        status = "АЗ-5! Leak Detected!" if alert else "No leak alert"
+        # status = "SCRAM! Leak Detected!" if alert else "No leak alert"
         status_class = "status-card alert" if alert else "status-card"
         st.markdown(
             f'<div class="{status_class}">{status}</div>', unsafe_allow_html=True
