@@ -28,49 +28,110 @@ st.markdown(
     """
     <style>
     :root {
-        --ink: #071417;
-        --panel: #102327;
-        --line: #315057;
-        --signal: #f2b544;
-        --cool: #76d7cf;
-        --paper: #e7eee9;
+        --ink: #0d0d0d;
+        --panel: #171717;
+        --line: #777777;
+        --signal: #e65a3b;
+        --signal-dark: #8f321f;
+        --paper: #f5f5f2;
     }
     .stApp {
-        background:
-            linear-gradient(rgba(118, 215, 207, 0.035) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(118, 215, 207, 0.035) 1px, transparent 1px),
-            var(--ink);
-        background-size: 32px 32px;
+        background: var(--ink);
         color: var(--paper);
     }
-    h1, h2, h3, [data-testid="stMetricValue"] {
-        font-family: "Avenir Next Condensed", "Helvetica Neue", sans-serif;
-        letter-spacing: 0.035em;
+    .stApp::before,
+    .stApp::after {
+        content: "";
+        position: fixed;
+        z-index: 0;
+        pointer-events: none;
+        width: 260px;
+        height: 430px;
+        background: repeating-linear-gradient(
+            135deg,
+            transparent 0 68px,
+            var(--signal) 69px 112px,
+            var(--signal-dark) 113px 136px,
+            transparent 137px 190px
+        );
+        opacity: 0.92;
     }
-    h1 { text-transform: uppercase; }
-    [data-testid="stSidebar"] { background: #091a1e; border-right: 1px solid var(--line); }
+    .stApp::before { top: -105px; right: -35px; }
+    .stApp::after { bottom: -250px; left: -95px; }
+    [data-testid="stAppViewContainer"] > .main,
+    [data-testid="stSidebar"] { position: relative; z-index: 1; }
+    h1, h2, h3, [data-testid="stMetricValue"] {
+        font-family: "Avenir Next Condensed", "DIN Condensed", sans-serif;
+        letter-spacing: 0.025em;
+    }
+    h1 {
+        color: var(--paper);
+        font-size: clamp(3rem, 7vw, 6.5rem);
+        font-weight: 400;
+        line-height: 0.95;
+        text-transform: none;
+    }
+    h1::after {
+        content: "";
+        display: block;
+        width: min(78vw, 920px);
+        margin-top: 1.6rem;
+        border-bottom: 1px solid #b8b8b8;
+    }
+    h2, h3 { color: var(--paper); }
+    p, label, [data-testid="stCaptionContainer"] { color: #d9d9d6; }
+    [data-testid="stHeader"] { background: transparent; }
+    [data-testid="stSidebar"] {
+        background: #121212;
+        border-right: 1px solid #3a3a3a;
+    }
     [data-testid="stFileUploaderDropzone"] {
-        background: rgba(16, 35, 39, 0.92);
-        border: 1px dashed var(--cool);
-        border-radius: 2px;
+        background: rgba(23, 23, 23, 0.96);
+        border: 1px dashed var(--signal);
+        border-radius: 0;
         min-height: 12rem;
     }
     [data-testid="stMetric"] {
-        background: rgba(16, 35, 39, 0.92);
-        border-top: 3px solid var(--cool);
+        background: rgba(23, 23, 23, 0.96);
+        border-top: 4px solid var(--signal);
         padding: 1rem;
     }
+    [data-testid="stAlert"] {
+        background: rgba(230, 90, 59, 0.1);
+        border-color: var(--signal);
+        border-radius: 0;
+    }
+    hr { border-color: #595959; }
     .status-card {
-        border: 1px solid var(--line);
-        border-left: 6px solid var(--signal);
-        background: rgba(16, 35, 39, 0.96);
+        border: 1px solid #595959;
+        border-left: 7px solid var(--signal);
+        background: rgba(23, 23, 23, 0.98);
         padding: 1rem 1.25rem;
         margin: 0.5rem 0 1.25rem;
         text-transform: uppercase;
+        letter-spacing: 0.1em;
+    }
+    .eyebrow {
+        color: var(--signal);
+        font-family: "Avenir Next Condensed", "DIN Condensed", sans-serif;
+        font-size: 1rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+    }
+    .stButton > button {
+        background: var(--signal);
+        border: 1px solid var(--signal);
+        border-radius: 0;
+        color: white;
+        font-weight: 700;
+        text-transform: uppercase;
         letter-spacing: 0.08em;
     }
-    .eyebrow { color: var(--cool); font-size: 0.78rem; letter-spacing: 0.18em; text-transform: uppercase; }
-    .stButton > button { border-radius: 2px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+    .stButton > button:hover {
+        background: #f06a4a;
+        border-color: #f06a4a;
+        color: white;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -157,7 +218,7 @@ if st.button("Analyze scenario", type="primary", disabled=uploaded is None or bo
                     "Probability": list(result["leak_type_probabilities"].values()),
                 }
             ).sort_values("Probability", ascending=False)
-            st.bar_chart(type_frame, x="Leak type", y="Probability", color="#76d7cf")
+            st.bar_chart(type_frame, x="Leak type", y="Probability", color="#e65a3b")
 
         with st.expander("Prediction details"):
             visible_result = {
