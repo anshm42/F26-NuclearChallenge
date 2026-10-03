@@ -132,23 +132,31 @@ if st.button("Analyze scenario", type="primary", disabled=uploaded is None or bo
         status = "Leak alert" if alert else "No leak alert"
         st.markdown(f'<div class="status-card">{status}</div>', unsafe_allow_html=True)
 
-        probability_column, threshold_column, type_column = st.columns(3)
-        probability_column.metric("Leak probability", f"{probability:.1%}")
-        threshold_column.metric("Alert threshold", f"{threshold:.1%}")
-        type_column.metric(
-            "Most likely type",
-            str(result["predicted_leak_type"] or "Not reported"),
-        )
+        metric_columns = st.columns(3 if alert else 2)
+        metric_columns[0].metric("Leak probability", f"{probability:.1%}")
+        metric_columns[1].metric("Alert threshold", f"{threshold:.1%}")
 
-        st.subheader("Conditional leak-type probabilities")
-        st.caption("Type estimates are secondary. The binary leak alert remains the primary decision.")
-        type_frame = pd.DataFrame(
-            {
-                "Leak type": list(result["leak_type_probabilities"]),
-                "Probability": list(result["leak_type_probabilities"].values()),
-            }
-        ).sort_values("Probability", ascending=False)
-        st.bar_chart(type_frame, x="Leak type", y="Probability", color="#76d7cf")
+        if alert:
+            metric_columns[2].metric(
+                "Most likely type", str(result["predicted_leak_type"])
+            )
+            st.subheader("Conditional leak-type probabilities")
+            st.caption(
+                "Type estimates are secondary. The binary leak alert remains the primary decision."
+            )
+            type_frame = pd.DataFrame(
+                {
+                    "Leak type": list(result["leak_type_probabilities"]),
+                    "Probability": list(result["leak_type_probabilities"].values()),
+                }
+            ).sort_values("Probability", ascending=False)
+            st.bar_chart(type_frame, x="Leak type", y="Probability", color="#76d7cf")
 
         with st.expander("Prediction details"):
-            st.json(result)
+            visible_result = {
+                key: value
+                for key, value in result.items()
+                if alert
+                or key not in {"predicted_leak_type", "leak_type_probabilities"}
+            }
+            st.json(visible_result)

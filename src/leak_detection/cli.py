@@ -317,21 +317,24 @@ def predict_scenario(
     threshold = float(binary_artifact["threshold"])
     leak_alert = leak_probability >= threshold
 
-    type_features = features_for_artifact(csv_path, type_artifact)
-    type_probabilities = type_artifact["model"].predict_proba(type_features)[0]
-    class_names = type_artifact["class_names"]
-    type_results = {
-        name: float(type_probabilities[index])
-        for index, name in enumerate(class_names)
-    }
-    most_likely_type = max(type_results, key=lambda name: type_results[name])
+    type_results: dict[str, float] = {}
+    most_likely_type = None
+    if leak_alert:
+        type_features = features_for_artifact(csv_path, type_artifact)
+        type_probabilities = type_artifact["model"].predict_proba(type_features)[0]
+        class_names = type_artifact["class_names"]
+        type_results = {
+            name: float(type_probabilities[index])
+            for index, name in enumerate(class_names)
+        }
+        most_likely_type = max(type_results, key=lambda name: type_results[name])
 
     return {
         "input_csv": input_name or str(csv_path),
         "leak_probability": leak_probability,
         "alert_threshold": threshold,
         "leak_alert": leak_alert,
-        "predicted_leak_type": most_likely_type if leak_alert else None,
+        "predicted_leak_type": most_likely_type,
         "leak_type_probabilities": type_results,
         "binary_window_seconds": float(
             binary_artifact["feature_config"]["max_time_seconds"]

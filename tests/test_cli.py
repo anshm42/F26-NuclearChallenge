@@ -3,16 +3,46 @@ import tempfile
 import unittest
 from argparse import Namespace
 from pathlib import Path
+from unittest.mock import patch
 
 import pandas as pd
 
 from leak_detection.cli import (
+    predict_scenario,
     run_evaluate,
     run_evaluate_types,
     run_predict,
     run_train,
     run_train_types,
 )
+
+
+class PredictionTests(unittest.TestCase):
+    def test_skips_leak_type_model_when_no_leak_is_detected(self) -> None:
+        binary_artifact = {
+            "model": object(),
+            "threshold": 0.5,
+            "feature_config": {"max_time_seconds": 120.0},
+        }
+        type_artifact = {
+            "model_kind": "leak_type",
+            "feature_config": {"max_time_seconds": 120.0},
+        }
+        with (
+            patch(
+                "leak_detection.cli.features_for_artifact",
+                return_value=pd.DataFrame(),
+            ) as feature_mock,
+            patch("leak_detection.cli.leak_probabilities", return_value=[0.1]),
+        ):
+            result = predict_scenario(
+                "normal.csv", binary_artifact, type_artifact
+            )
+
+        self.assertFalse(result["leak_alert"])
+        self.assertIsNone(result["predicted_leak_type"])
+        self.assertEqual(result["leak_type_probabilities"], {})
+        feature_mock.assert_called_once()
 
 
 class CliIntegrationTests(unittest.TestCase):
