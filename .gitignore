@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# Trained artifacts and generated reports
+artifacts/
+reports/
+
+# Editor metadata
+.idea/
+.DS_Store
