@@ -12,7 +12,7 @@ TYPE_MODEL = Path("artifacts/leak_type_model.joblib")
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
 st.set_page_config(
-    page_title="Leak Sentinel",
+    page_title="Leak Detection Model",
     page_icon="⚛",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -77,7 +77,7 @@ def trusted_artifact(path: str) -> dict[str, Any]:
 
 
 st.markdown('<p class="eyebrow">NPPAD / Early-warning classifier</p>', unsafe_allow_html=True)
-st.title("Leak Sentinel")
+st.title("Leak Detection Model")
 st.caption("Calibrated XGBoost analysis of one simulated reactor scenario.")
 st.warning(
     "Research prototype using simulated NPPAD data. Not validated for plant operation or safety decisions.",
