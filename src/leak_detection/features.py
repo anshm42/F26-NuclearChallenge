@@ -39,7 +39,7 @@ SUMMARY_STATS = ("last", "mean", "std", "min", "max", "delta", "slope")
 class FeatureConfig:
     """Settings that must be identical during training and evaluation."""
 
-    max_time_seconds: float = 300.0
+    max_time_seconds: float = 120.0
     time_column: str = "TIME"
     excluded_columns: tuple[str, ...] = tuple(sorted(DIRECT_LEAK_COLUMNS))
 

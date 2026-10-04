@@ -34,7 +34,7 @@ Change `--positive-classes` if your team adopts a narrower definition.
 
 ## Leakage controls
 
-Each CSV becomes one sample. The first 300 seconds (5 minutes) are summarized with last value, mean, standard deviation, minimum, maximum, change, and linear trend for each sensor.
+Each CSV becomes one sample. The first 120 seconds (2 minutes) are summarized with last value, mean, standard deviation, minimum, maximum, change, and linear trend for each sensor.
 
 Direct answer fields are excluded by default:
 
@@ -85,7 +85,7 @@ leak-model train \
   --validation-dir ML_Dataset/Validation \
   --output artifacts/leak_model.joblib \
   --minimum-recall 1.0 \
-  --max-time-seconds 300
+  --max-time-seconds 120
 ```
 
 Threshold selection prioritizes recall before precision, accepting more false alarms to avoid missed leaks. This writes the model artifact plus validation metrics and per-run predictions. Do not tune the model after inspecting final test results.
@@ -99,7 +99,7 @@ leak-model train-types \
   --train-dir ML_Dataset/Training \
   --validation-dir ML_Dataset/Validation \
   --output artifacts/leak_type_model.joblib \
-  --max-time-seconds 300
+  --max-time-seconds 120
 ```
 
 Validation output includes multiclass log loss, accuracy, top-2 accuracy, per-type recall, and a confusion matrix. Per-run output includes one probability column for every leak type.
