@@ -36,30 +36,24 @@ st.markdown(
         --paper: #f5f5f2;
     }
     .stApp {
-        background: var(--ink);
+        background:
+            repeating-linear-gradient(
+                135deg,
+                transparent 0 68px,
+                rgba(230, 90, 59, 0.92) 69px 112px,
+                rgba(143, 50, 31, 0.92) 113px 136px,
+                transparent 137px 190px
+            ) right -35px top -105px / 260px 430px no-repeat,
+            repeating-linear-gradient(
+                135deg,
+                transparent 0 68px,
+                rgba(230, 90, 59, 0.92) 69px 112px,
+                rgba(143, 50, 31, 0.92) 113px 136px,
+                transparent 137px 190px
+            ) left -95px bottom -250px / 260px 430px no-repeat,
+            var(--ink);
         color: var(--paper);
     }
-    .stApp::before,
-    .stApp::after {
-        content: "";
-        position: fixed;
-        z-index: 0;
-        pointer-events: none;
-        width: 260px;
-        height: 430px;
-        background: repeating-linear-gradient(
-            135deg,
-            transparent 0 68px,
-            var(--signal) 69px 112px,
-            var(--signal-dark) 113px 136px,
-            transparent 137px 190px
-        );
-        opacity: 0.92;
-    }
-    .stApp::before { top: -105px; right: -35px; }
-    .stApp::after { bottom: -250px; left: -95px; }
-    [data-testid="stAppViewContainer"] > .main,
-    [data-testid="stSidebar"] { position: relative; z-index: 1; }
     h1, h2, h3, [data-testid="stMetricValue"] {
         font-family: "Avenir Next Condensed", "DIN Condensed", sans-serif;
         letter-spacing: 0.025em;
