@@ -4,6 +4,53 @@ This project trains a calibrated XGBoost classifier to estimate the probability 
 
 > This is a research prototype built from simulated data. It is not a validated nuclear safety system and must not be used as the sole basis for operational decisions.
 
+## Quick start
+
+Run all commands from the repository root. Place the NPPAD operation data at `NuclearPowerPlantAccidentData/Operation_csv_data` first.
+
+On macOS, install OpenMP, create the Python environment, and install the project:
+
+```bash
+brew install libomp
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+Create the current 20% training, 40% validation, and 40% testing split:
+
+```bash
+python nuclear_dataset_splitter.py \
+  --input-folder NuclearPowerPlantAccidentData/Operation_csv_data \
+  --output-folder ML_Dataset \
+  --training-ratio 0.20 \
+  --validation-ratio 0.40 \
+  --testing-ratio 0.40
+```
+
+Train both 120-second models:
+
+```bash
+leak-model train \
+  --train-dir ML_Dataset/Training \
+  --validation-dir ML_Dataset/Validation \
+  --output artifacts/leak_model.joblib \
+  --minimum-recall 1.0
+
+leak-model train-types \
+  --train-dir ML_Dataset/Training \
+  --validation-dir ML_Dataset/Validation \
+  --output artifacts/leak_type_model.joblib
+```
+
+Launch the web interface:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+Open the local URL printed by Streamlit. Upload one operation CSV for a prediction, or run the full testing split from the page. If `ML_Dataset/` and both model artifacts already exist, only activate the environment and launch Streamlit.
+
 ## Data split contract
 
 Split **whole simulation CSV files**, never individual timestamp rows. Keeping rows from one run in different splits would leak the same trajectory into training and evaluation.
