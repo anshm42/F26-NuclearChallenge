@@ -108,6 +108,7 @@ source .venv/bin/activate
 pip install -e .
 ```
 
+## Train and select threshold
 ## Create train, validation, and test splits
 
 Use `nuclear_dataset_splitter.py` to allocate complete simulation CSVs. Defaults are 10% training, 45% validation, and 45% testing. All ratios are configurable and must sum to `1.0`:
