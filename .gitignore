@@ -5,7 +5,8 @@ __pycache__/
 .pytest_cache/
 .venv/
 
-# Trained artifacts and generated reports
+# Generated data, trained artifacts, and reports
+ML_Dataset/
 artifacts/
 reports/
 

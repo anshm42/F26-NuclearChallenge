@@ -17,6 +17,12 @@ class ThresholdTests(unittest.TestCase):
         self.assertEqual(metrics["false_positives"], 0)
         self.assertEqual(metrics["recall"], 1.0)
 
+    def test_prioritizes_recall_over_a_stricter_threshold(self) -> None:
+        targets = np.array([0, 0, 1, 1])
+        probabilities = np.array([0.1, 0.4, 0.6, 0.9])
+        threshold = choose_threshold(targets, probabilities, minimum_recall=0.5)
+        self.assertEqual(threshold, 0.6)
+
     def test_requires_a_positive_validation_run(self) -> None:
         with self.assertRaisesRegex(ValueError, "at least one leak"):
             choose_threshold(np.array([0, 0]), np.array([0.1, 0.2]))
