@@ -60,7 +60,7 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-## Train and select a threshold
+## Train and select threshold
 
 Training reads only the training and validation directories. XGBoost is probability-calibrated using folds within the training data. Validation selects the highest-precision alert threshold that reaches the requested minimum recall.
 
