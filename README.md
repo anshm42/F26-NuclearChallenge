@@ -1,6 +1,6 @@
 # F26 Nuclear Challenge — Leak Probability Model
 
-This project trains a calibrated XGBoost classifier to estimate the probability that one NPPAD simulation represents a leak/break event.
+This project trains a calibrated XGBoost classifier to estimate the probability of Nuclear Power Plant Accident Data(NPPAD) simulation represents a leak/break event.
 [Demo](https://youtu.be/QADlXpQ3rQA)
 
 > This is a research prototype built from simulated data. It is not a validated nuclear safety system and must not be used as the sole basis for operational decisions.
